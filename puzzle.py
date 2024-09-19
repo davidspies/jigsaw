@@ -235,7 +235,7 @@ def visualize(output: str):
         16: "darkblue",
         17: "darkcyan",
         18: "darkmagenta",
-        19: "darkyellow",
+        19: "gold",
         20: "darkorange",
     }
 
