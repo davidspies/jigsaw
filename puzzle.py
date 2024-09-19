@@ -65,7 +65,9 @@ def search(args: argparse.Namespace):
     # Add constants
     clingo_command += [
         "--const",
-        f"edge_types={args.edge_types}",
+        f"int_edge_types={args.int_edge_types}",
+        "--const",
+        f"ext_edge_types={args.ext_edge_types}",
         "--const",
         f"min_usage_count={args.min_usage_count}",
     ]
@@ -413,7 +415,8 @@ def main():
 
     # Search subcommand
     solve_parser = subparsers.add_parser("search", help="Search for puzzle pairs")
-    solve_parser.add_argument("--edge-types", type=int, required=True)
+    solve_parser.add_argument("--int-edge-types", type=int, required=True)
+    solve_parser.add_argument("--ext-edge-types", type=int, required=True)
     solve_parser.add_argument("--min-usage-count", type=int, required=True)
     solve_parser.add_argument("--enforce-distinct", action="store_true")
     solve_parser.add_argument("-t", type=int, help="Number of threads to use")

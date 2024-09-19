@@ -1,4 +1,7 @@
-edge_type(1..edge_types).
+interior_edge_type(1..int_edge_types).
+exterior_edge_type(int_edge_types + 1..int_edge_types + ext_edge_types).
+edge_type(E) :- interior_edge_type(E).
+edge_type(E) :- exterior_edge_type(E).
 solution_index(1..2).
 one_or_two(1..2).
 
@@ -10,7 +13,6 @@ s1_side_points_towards(Loc, S, H2) :-
     step_clockwise(H1, H2).
 
 positive_heading(north; east).
-s1_positive_side(s1_loc(Loc), S) :- s1_side_points_towards(Loc, S, H); positive_heading(H).
 
 s1_complementing(edge_of(Loc1, S1), edge_of(Loc2, S2)) :-
     adjacent_on(Loc1, Loc2, H1);
@@ -18,12 +20,24 @@ s1_complementing(edge_of(Loc1, S1), edge_of(Loc2, S2)) :-
     opposite_heading(H1, H2);
     s1_side_points_towards(Loc1, S1, H1);
     s1_side_points_towards(Loc2, S2, H2).
+interior_side(edge_of(Loc1, S)) :-
+    s1_complementing(edge_of(Loc1, S), edge_of(_, _));
+    is_interior_location(Loc1).
+interior_side(edge_of(Loc1, S)) :-
+    s1_complementing(edge_of(Loc1, S), edge_of(Loc2, _));
+    is_interior_location(Loc2).
+exterior_side(edge_of(Loc1, S)) :-
+    s1_complementing(edge_of(Loc1, S), edge_of(Loc2, _));
+    not is_interior_location(Loc1);
+    not is_interior_location(Loc2).
 
-% Remove some symmetries by fully specifying one edge between two perimeter pieces and mostly specifying an
-% edge to an interior piece (they may or may not be of the same kind).
-has_edge(s1_loc(location(1, 1)), edge_descriptor(1, inny), 3).
-{has_edge(s1_loc(location(1, 2)), edge_descriptor(E, inny), 3) : one_or_two(E)} = 1.
-{has_edge(Piece, D, S) : is_descriptor(D)} = 1 :- s1_positive_side(Piece, S); not is_smooth_side(Piece, S).
+% Remove some symmetries by specifying one interior edge and one exterior edge.
+has_edge(s1_loc(location(1, 2)), edge_descriptor(1, inny), 3).
+has_edge(s1_loc(location(1, 1)), edge_descriptor(int_edge_types + 1, inny), 3).
+{has_edge(s1_loc(Loc), edge_descriptor(E, P), S) : interior_edge_type(E), polarity(P)} = 1 :-
+    interior_side(edge_of(Loc, S)).
+{has_edge(s1_loc(Loc), edge_descriptor(E, P), S) : exterior_edge_type(E), polarity(P)} = 1 :-
+    exterior_side(edge_of(Loc, S)).
 has_edge(s1_loc(Loc2), D2, S2) :-
     has_edge(s1_loc(Loc1), D1, S1);
     s1_complementing(edge_of(Loc1, S1), edge_of(Loc2, S2));
