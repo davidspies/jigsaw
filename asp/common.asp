@@ -55,12 +55,12 @@ joined(side_of(Piece1, S1), side_of(Piece2, S2), I) :-
     side_points_towards(Piece2, S2, H2, I);
     opposite_heading(H1, H2).
 
-:-
-    joined(side_of(Piece1, S1), side_of(Piece2, S2), I);
+fits_together(side_of(Piece1, S1), side_of(Piece2, S2)) :-
     has_edge(Piece1, D1, S1);
     has_edge(Piece2, D2, S2);
-    not complementary(D1, D2);
-    I != 1.
+    complementary(D1, D2).
+
+:- joined(PE1, PE2, I); not fits_together(PE1, PE2); I != 1.
 
 #show in_location/3.
 #show side_points_towards/4.
