@@ -1,10 +1,40 @@
 import re
-
+from typing import Dict, List, Tuple, Optional
+from dataclasses import dataclass, field
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
 
-def visualize(output: str):
+@dataclass
+class EdgeDescriptor:
+    edge_type: int  # E
+    polarity: str   # 'inny' or 'outy'
+
+
+@dataclass
+class Piece:
+    piece_id: str
+    location: Optional[Tuple[int, int]] = None  # (loc_x, loc_y)
+    sides: Dict[int, str] = field(default_factory=dict)  # Side number to Direction mapping
+    edges: Dict[int, EdgeDescriptor] = field(default_factory=dict)  # Side number to EdgeDescriptor
+
+
+@dataclass
+class Solution:
+    solution_idx: int
+    pieces: Dict[str, Piece] = field(default_factory=dict)  # piece_id to Piece object
+
+
+def extract_coordinates(piece_id: str) -> Tuple[int, int]:
+    match = re.match(r"s1_loc\(location\((\d+),(\d+)\)\)", piece_id)
+    if match:
+        x_str, y_str = match.groups()
+        return int(x_str), int(y_str)
+    else:
+        raise ValueError(f"Invalid piece_id format: {piece_id}")
+
+
+def visualize(output: str) -> None:
     in_location_pattern = re.compile(
         r"in_location\(s1_loc\(location\((\d+),(\d+)\)\),location\((\d+),(\d+)\),(\d+)\)"
     )
@@ -16,45 +46,54 @@ def visualize(output: str):
     )
 
     # Initialize data structures
-    solutions = {}
-    edges_per_piece = {}
+    solutions: Dict[int, Solution] = {}
 
     # Process each fact and update the appropriate data structures
     for fact in output.split():
         if in_location_pattern.match(fact):
             m = in_location_pattern.match(fact)
             assert m is not None
-            piece_x, piece_y, loc_x, loc_y, solution_idx = map(int, m.groups())
-            piece = f"s1_loc(location({piece_x},{piece_y}))"
+            piece_x_str, piece_y_str, loc_x_str, loc_y_str, solution_idx_str = m.groups()
+            piece_id = f"s1_loc(location({piece_x_str},{piece_y_str}))"
+            loc_x, loc_y = int(loc_x_str), int(loc_y_str)
+            solution_idx = int(solution_idx_str)
             if solution_idx not in solutions:
-                solutions[solution_idx] = {}
-            if piece not in solutions[solution_idx]:
-                solutions[solution_idx][piece] = {"location": None, "sides": {}}
-            solutions[solution_idx][piece]["location"] = (loc_x, loc_y)
+                solutions[solution_idx] = Solution(solution_idx)
+            solution = solutions[solution_idx]
+            if piece_id not in solution.pieces:
+                solution.pieces[piece_id] = Piece(piece_id)
+            piece = solution.pieces[piece_id]
+            piece.location = (loc_x, loc_y)
 
         elif side_points_towards_pattern.match(fact):
             m = side_points_towards_pattern.match(fact)
             assert m is not None
-            piece_x, piece_y, side, direction, solution_idx = m.groups()
-            piece = f"s1_loc(location({piece_x},{piece_y}))"
-            side = int(side)
-            solution_idx = int(solution_idx)
+            piece_x_str, piece_y_str, side_str, direction, solution_idx_str = m.groups()
+            piece_id = f"s1_loc(location({piece_x_str},{piece_y_str}))"
+            side = int(side_str)
+            solution_idx = int(solution_idx_str)
             if solution_idx not in solutions:
-                solutions[solution_idx] = {}
-            if piece not in solutions[solution_idx]:
-                solutions[solution_idx][piece] = {"location": None, "sides": {}}
-            solutions[solution_idx][piece]["sides"][side] = direction
+                solutions[solution_idx] = Solution(solution_idx)
+            solution = solutions[solution_idx]
+            if piece_id not in solution.pieces:
+                solution.pieces[piece_id] = Piece(piece_id)
+            piece = solution.pieces[piece_id]
+            piece.sides[side] = direction
 
         elif has_edge_pattern.match(fact):
             m = has_edge_pattern.match(fact)
             assert m is not None
-            piece_x, piece_y, edge_type, polarity, side = m.groups()
-            piece = f"s1_loc(location({piece_x},{piece_y}))"
-            edge_type = int(edge_type)
-            side = int(side)
-            if piece not in edges_per_piece:
-                edges_per_piece[piece] = {}
-            edges_per_piece[piece][side] = {"E": edge_type, "P": polarity}
+            piece_x_str, piece_y_str, edge_type_str, polarity, side_str = m.groups()
+            piece_id = f"s1_loc(location({piece_x_str},{piece_y_str}))"
+            edge_type = int(edge_type_str)
+            side = int(side_str)
+            # Since 'has_edge' facts do not have a solution index, we'll assume that edge descriptors are the same across all solutions.
+            # We'll need to add the edge descriptors to all pieces in all solutions.
+            for solution in solutions.values():
+                if piece_id not in solution.pieces:
+                    solution.pieces[piece_id] = Piece(piece_id)
+                piece = solution.pieces[piece_id]
+                piece.edges[side] = EdgeDescriptor(edge_type, polarity)
 
     # Edge colors mapping
     edge_colors = {
@@ -81,48 +120,37 @@ def visualize(output: str):
     }
 
     # Create a figure for side-by-side layouts
+    num_solutions = len(solutions)
     fig, axes = plt.subplots(
-        1, len(solutions), figsize=(6 * len(solutions), 6)
+        1, num_solutions, figsize=(6 * num_solutions, 6)
     )  # Dynamically adjust the number of columns
 
-    if len(solutions) == 1:
+    if num_solutions == 1:
         axes = [axes]  # Ensure axes is always a list
 
-    for idx, (solution_idx, pieces_in_solution) in enumerate(sorted(solutions.items())):
-        ax = axes[idx]  # Access the left or right axis
+    for idx, (solution_idx, solution) in enumerate(sorted(solutions.items())):
+        ax = axes[idx]  # Access the corresponding axis
         # Build grid
-        grid = [[None for _ in range(5)] for _ in range(5)]
-        for piece, data in pieces_in_solution.items():
-            location = data["location"]
-            sides = data["sides"]  # mapping from Side to Direction
-            edges = edges_per_piece.get(piece, {})
-            # Build mapping from Direction to Edge Descriptor
-            direction_to_edge = {}
-            for side, direction in sides.items():
-                edge = edges.get(side, None)
-                direction_to_edge[direction] = (
-                    edge  # edge is {'E': edge_type, 'P': polarity} or None
-                )
-            # Store in grid
-            loc_x, loc_y = location
-            grid[loc_y - 1][loc_x - 1] = {"Piece": piece, "edges": direction_to_edge}
+        grid: List[List[Optional[Piece]]] = [[None for _ in range(5)] for _ in range(5)]
+        for piece_id, piece in solution.pieces.items():
+            if piece.location is None:
+                continue  # Skip pieces without location
+            loc_x, loc_y = piece.location
+            grid[loc_y - 1][loc_x - 1] = piece
         # Now, grid is built. We can proceed to render the grid
         # Draw each cell
         for y in range(5):
             for x in range(5):
-                cell = grid[y][x]
-                if cell is None:
+                piece = grid[y][x]
+                if piece is None:
                     continue
-                piece = cell["Piece"]
-                edges = cell["edges"]  # mapping from Direction to edge descriptor
                 # Draw the square
                 rect = patches.Rectangle(
                     (x, y), 1, 1, linewidth=1, edgecolor="black", facecolor="white"
                 )
                 ax.add_patch(rect)
-                # Draw the piece identifier (abbreviated)
-                match = re.match(r"s1_loc\(location\((\d+),(\d+)\)\)", piece)
-                s1_x, s1_y = match.groups()
+                # Draw the piece identifier (coordinates)
+                s1_x, s1_y = extract_coordinates(piece.piece_id)
                 ax.text(
                     x + 0.5,
                     y + 0.5,
@@ -131,13 +159,19 @@ def visualize(output: str):
                     va="center",
                     fontsize=8,
                 )
+                # Build mapping from Direction to EdgeDescriptor
+                direction_to_edge: Dict[str, Optional[EdgeDescriptor]] = {}
+                for side, direction in piece.sides.items():
+                    edge = piece.edges.get(side, None)
+                    direction_to_edge[direction] = edge  # EdgeDescriptor or None
+
                 # Draw the edges
                 for direction in ["north", "east", "south", "west"]:
-                    edge = edges.get(direction, None)
+                    edge = direction_to_edge.get(direction, None)
                     if edge:
                         # Draw the edge
-                        edge_type = edge["E"]
-                        polarity = edge["P"]  # 'inny' or 'outy'
+                        edge_type = edge.edge_type
+                        polarity = edge.polarity  # 'inny' or 'outy'
                         # Map edge type to a color
                         color = edge_colors.get(edge_type, "black")
                         # Determine positions for the edge line and label
@@ -173,6 +207,8 @@ def visualize(output: str):
                             arrow_direction = (
                                 (-0.1, 0) if polarity == "outy" else (0.1, 0)
                             )
+                        else:
+                            continue  # Invalid direction
                         # Draw the edge
                         ax.plot(
                             [x_start, x_end], [y_start, y_end], color=color, linewidth=2
