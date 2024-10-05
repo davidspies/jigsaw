@@ -1,22 +1,30 @@
 import re
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 
 @dataclass
 class EdgeDescriptor:
     edge_type: int  # E
-    polarity: str   # 'inny' or 'outy'
+    polarity: str  # 'inny' or 'outy'
 
 
 @dataclass
 class Piece:
     piece_id: str
     location: Optional[Tuple[int, int]] = None  # (loc_x, loc_y)
-    sides: Dict[int, str] = field(default_factory=dict)  # Side number to Direction mapping
-    edges: Dict[int, EdgeDescriptor] = field(default_factory=dict)  # Side number to EdgeDescriptor
+    sides: Dict[int, str] = field(
+        default_factory=dict
+    )  # Side number to Direction mapping
+    edges: Dict[int, EdgeDescriptor] = field(
+        default_factory=dict
+    )  # Side number to EdgeDescriptor
 
 
 @dataclass
@@ -53,7 +61,9 @@ def visualize(output: str) -> None:
         if in_location_pattern.match(fact):
             m = in_location_pattern.match(fact)
             assert m is not None
-            piece_x_str, piece_y_str, loc_x_str, loc_y_str, solution_idx_str = m.groups()
+            piece_x_str, piece_y_str, loc_x_str, loc_y_str, solution_idx_str = (
+                m.groups()
+            )
             piece_id = f"s1_loc(location({piece_x_str},{piece_y_str}))"
             loc_x, loc_y = int(loc_x_str), int(loc_y_str)
             solution_idx = int(solution_idx_str)
@@ -88,7 +98,7 @@ def visualize(output: str) -> None:
             edge_type = int(edge_type_str)
             side = int(side_str)
             # Since 'has_edge' facts do not have a solution index, we'll assume that edge descriptors are the same across all solutions.
-            # We'll need to add the edge descriptors to all pieces in all solutions.
+            # We'll need to add the edge descriptors to the corresponding 'Piece' in all solutions.
             for solution in solutions.values():
                 if piece_id not in solution.pieces:
                     solution.pieces[piece_id] = Piece(piece_id)
@@ -96,7 +106,7 @@ def visualize(output: str) -> None:
                 piece.edges[side] = EdgeDescriptor(edge_type, polarity)
 
     # Edge colors mapping
-    edge_colors = {
+    edge_colors: Dict[int, str] = {
         1: "red",
         2: "green",
         3: "blue",
@@ -121,15 +131,21 @@ def visualize(output: str) -> None:
 
     # Create a figure for side-by-side layouts
     num_solutions = len(solutions)
-    fig, axes = plt.subplots(
-        1, num_solutions, figsize=(6 * num_solutions, 6)
-    )  # Dynamically adjust the number of columns
+    _fig: Figure
+    axes: Union[Axes, np.ndarray[Any, Any]]
+    _fig, axes = plt.subplots(1, num_solutions, figsize=(6 * num_solutions, 6))  # type: ignore
 
-    if num_solutions == 1:
-        axes = [axes]  # Ensure axes is always a list
+    # Ensure axes is always a list of Axes objects
+    axes_list: List[Axes]
+    if isinstance(axes, Axes):
+        axes_list = [axes]
+    elif isinstance(axes, np.ndarray):  # type: ignore
+        axes_list = axes.flatten().tolist()
+    else:
+        raise TypeError("Unexpected type for axes")
 
     for idx, (solution_idx, solution) in enumerate(sorted(solutions.items())):
-        ax = axes[idx]  # Access the corresponding axis
+        ax = axes_list[idx]  # Access the corresponding axis
         # Build grid
         grid: List[List[Optional[Piece]]] = [[None for _ in range(5)] for _ in range(5)]
         for piece_id, piece in solution.pieces.items():
@@ -151,7 +167,7 @@ def visualize(output: str) -> None:
                 ax.add_patch(rect)
                 # Draw the piece identifier (coordinates)
                 s1_x, s1_y = extract_coordinates(piece.piece_id)
-                ax.text(
+                ax.text(  # type: ignore
                     x + 0.5,
                     y + 0.5,
                     f"{s1_x},{s1_y}",
@@ -210,12 +226,12 @@ def visualize(output: str) -> None:
                         else:
                             continue  # Invalid direction
                         # Draw the edge
-                        ax.plot(
+                        ax.plot(  # type: ignore
                             [x_start, x_end], [y_start, y_end], color=color, linewidth=2
                         )
                         # Draw the edge label (optional)
                         edge_label = f"{edge_type}"
-                        ax.text(
+                        ax.text(  # type: ignore
                             label_x,
                             label_y,
                             edge_label,
@@ -229,7 +245,7 @@ def visualize(output: str) -> None:
                         arrow_x = x_start + (x_end - x_start) / 2
                         arrow_y = y_start + (y_end - y_start) / 2
                         dx, dy = arrow_direction
-                        ax.arrow(
+                        ax.arrow(  # type: ignore
                             arrow_x,
                             arrow_y,
                             dx,
@@ -245,10 +261,10 @@ def visualize(output: str) -> None:
         ax.set_xlim(0, 5)
         ax.set_ylim(0, 5)
         ax.set_aspect("equal")
-        ax.set_title(f"Solution {solution_idx}")
+        ax.set_title(f"Solution {solution_idx}")  # type: ignore
         ax.invert_yaxis()  # Invert y-axis to match grid coordinates
-        ax.axis("off")  # Turn off the axis
+        ax.axis("off")  # type: ignore Turn off the axis
 
     # Display the side-by-side plot
-    plt.tight_layout()
-    plt.show()
+    plt.tight_layout()  # type: ignore
+    plt.show()  # type: ignore
