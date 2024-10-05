@@ -32,8 +32,8 @@ exterior_side(edge_of(Loc1, S)) :-
     not is_interior_location(Loc2).
 
 % Remove some symmetries by specifying one interior edge and one exterior edge.
-has_edge(s1_loc(location(1, 2)), edge_descriptor(1, inny), 3).
-has_edge(s1_loc(location(1, 1)), edge_descriptor(int_edge_types + 1, inny), 3).
+has_edge(s1_loc(location(1, 2)), edge_descriptor(int_edge_types + 1, inny), 3).
+has_edge(s1_loc(location(1, 1)), edge_descriptor(1, inny), 3).
 {has_edge(s1_loc(Loc), edge_descriptor(E, P), S) : interior_edge_type(E), polarity(P)} = 1 :-
     interior_side(edge_of(Loc, S)).
 {has_edge(s1_loc(Loc), edge_descriptor(E, P), S) : exterior_edge_type(E), polarity(P)} = 1 :-
